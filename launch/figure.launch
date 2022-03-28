@@ -1,4 +1,0 @@
-<launch>
-  <node pkg="team2" type="move_figure.py" name="figure_node"  output="screen">
-  </node>
-</launch>

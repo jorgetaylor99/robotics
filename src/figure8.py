@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+from logging import shutdown
 import rospy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from math import sqrt, pow, pi
+import time
 
 class Figure:
     def callback_function(self, odom_data):
@@ -51,66 +53,65 @@ class Figure:
 
         self.ctrl_c = False
         rospy.on_shutdown(self.shutdownhook)
-
         rospy.loginfo(f"the {node_name} node has been initialised...")
 
     def shutdownhook(self):
         self.pub.publish(Twist())
         self.ctrl_c = True
     
-    def print_stuff(self, a_message):
-        print(a_message)
-        print(f"current velocity: lin.x = {self.vel.linear.x:.1f}, ang.z = {self.vel.angular.z:.1f}")
-        print(f"current odometry: x = {self.x:.3f}, y = {self.y:.3f}, theta_z = {self.theta_z:.3f}")
+    def print_odometry(self):
+        print(f"x = {self.x:.2f} [m], y = {self.y:.2f} [m], yaw = {(self.theta_z*180)/pi:.1f} [degrees].")
 
     def main_loop(self):
-        status = ""
-        wait = 0
+        status = "anti_clockwise"
+        count = 0
+        start_time = time.time()
+
         while not self.ctrl_c:
             if self.startup:
                 self.vel = Twist()
-                status = "init"
-            """
-            elif self.turn:
-                if abs(self.theta_z0 - self.theta_z) >= pi/2 and wait > 5:
-                    # If the robot has turned 90 degrees (in radians) then stop turning
-                    self.turn = False
-                    self.vel = Twist()
-                    self.theta_z0 = self.theta_z
-                    status = "turn-fwd transition"
-                    wait = 0
-                else:
-                    self.vel = Twist()
-                    self.vel.angular.z = 0.2
-                    status = "turning"
-                    wait += 1
-            else:
-                if sqrt(pow(self.x0 - self.x, 2) + pow(self.y0 - self.y, 2)) >= 0.5:
-                    # if distance travelled is greater than 0.5m then stop, and start turning:
-                    self.vel = Twist()
-                    self.turn = True
-                    self.x0 = self.x
-                    self.y0 = self.y
-                    status = "fwd-turn transition"
-                else:
-                    self.vel = Twist()
-                    self.vel.linear.x = 0.1
-                    status = "moving forwards"
-            """
-            # if self.turn:
-            #     if self.x0 == self.x and self.y0 == self.y:
-            #         #swap direction
-            #     else:
-            #         self.vel = Twist()
-            #         self.    
+                status = "anti_clockwise"
+
+            elif status == "anti_clockwise":
+                self.vel.angular.z = -0.22
+                self.vel.linear.x = 0.11
+
+                # use a counter to ensure robot does not get stuck before it starts moving
+                if (count > 10) and (-0.01 <= self.x <= 0.01) and (-0.01 <= self.y <= 0.01):
+                    status = "clockwise"
+                    count = 0
+
+            elif status == "clockwise":
+                self.vel.angular.z = 0.22
+                self.vel.linear.x = 0.11
+
+                if (count > 10) and (-0.01 <= self.x <= 0.01) and (-0.01 <= self.y <= 0.01):
+                    status = "stop"
+
+            else: # status is stop
+                self.vel.angular.z = 0
+                self.vel.linear.x = 0
+                
+                # calculate execution time (approx 60s)
+                execution_time = time.time() - start_time
+                print(f"Execution time = {execution_time:.1f}s")
+
+                # shutdown once sequence is complete          
+                self.shutdownhook()
 
             self.pub.publish(self.vel)
-            self.print_stuff(status)
+
+            # Print odometry data every 1Hz (every 1s)
+            # Since we're running at 10Hz just run every 10th cycle
+            if count % 10 == 0:
+                self.print_odometry()
+            
             self.rate.sleep()
+            count += 1
 
 if __name__ == '__main__':
-    movesquare_instance = Figure()
+    figure8_instance = Figure()
     try:
-        movesquare_instance.main_loop()
+        figure8_instance.main_loop()
     except rospy.ROSInterruptException:
         pass
