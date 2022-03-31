@@ -77,7 +77,7 @@ class Figure:
                 self.vel.linear.x = 0.11
 
                 # use a counter to ensure robot does not get stuck before it starts moving
-                if (count > 10) and (-0.01 <= self.x <= 0.01) and (-0.01 <= self.y <= 0.01):
+                if (count > 10) and (-0.03 <= self.x <= 0.03) and (-0.03 <= self.y <= 0.03):
                     status = "clockwise"
                     count = 0
 
@@ -85,7 +85,7 @@ class Figure:
                 self.vel.angular.z = -0.22
                 self.vel.linear.x = 0.11
 
-                if (count > 10) and (-0.01 <= self.x <= 0.01) and (-0.01 <= self.y <= 0.01):
+                if (count > 10) and (-0.03 <= self.x <= 0.03) and (-0.03 <= self.y <= 0.03):
                     status = "stop"
 
             else: # status is stop
