@@ -73,7 +73,7 @@ class Figure:
                 status = "anti_clockwise"
 
             elif status == "anti_clockwise":
-                self.vel.angular.z = -0.22
+                self.vel.angular.z = 0.22
                 self.vel.linear.x = 0.11
 
                 # use a counter to ensure robot does not get stuck before it starts moving
@@ -82,7 +82,7 @@ class Figure:
                     count = 0
 
             elif status == "clockwise":
-                self.vel.angular.z = 0.22
+                self.vel.angular.z = -0.22
                 self.vel.linear.x = 0.11
 
                 if (count > 10) and (-0.01 <= self.x <= 0.01) and (-0.01 <= self.y <= 0.01):
