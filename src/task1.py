@@ -5,10 +5,10 @@ import rospy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
-from math import sqrt, pow, pi
+from math import pi
 import time
 
-class Figure:
+class Task1:
     def callback_function(self, odom_data):
         # obtain the orientation and position co-ords:
         or_x = odom_data.pose.pose.orientation.x
@@ -32,7 +32,7 @@ class Figure:
             self.theta_z0 = self.theta_z
 
     def __init__(self):
-        node_name = "move_figure"
+        node_name = "task1"
         
         self.startup = True
 
@@ -60,7 +60,7 @@ class Figure:
         self.ctrl_c = True
     
     def print_odometry(self):
-        print(f"x = {self.x:.2f} [m], y = {self.y:.2f} [m], yaw = {(self.theta_z*180)/pi:.1f} [degrees].")
+        print(f"x={self.x:.2f} [m], y={self.y:.2f} [m], yaw={(self.theta_z*180)/pi:.1f} [degrees].")
 
     def main_loop(self):
         status = "anti_clockwise"
@@ -110,8 +110,8 @@ class Figure:
             count += 1
 
 if __name__ == '__main__':
-    figure8_instance = Figure()
+    task1_instance = Task1()
     try:
-        figure8_instance.main_loop()
+        task1_instance.main_loop()
     except rospy.ROSInterruptException:
         pass
