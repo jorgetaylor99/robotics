@@ -67,7 +67,7 @@ class Task3:
         start_time = time.time()
         execution_time = 0
 
-        while not self.ctrl_c and execution_time < 600:
+        while not self.ctrl_c and execution_time < 150:
 
             execution_time = time.time() - start_time
             print(f"Minimum distance from right wall: {self.right_min}, time: {execution_time}")
