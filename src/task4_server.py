@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
-
+from logging import shutdown
+from termios import VEOL
 import rospy
 from com2009_msgs.srv import SetBool,SetBoolResponse
 from geometry_msgs.msg import Twist
 
 import cv2
 from cv_bridge import CvBridge,CvBridgeError
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image,LaserScan
+import numpy as np
+import time
 
 import math
 
@@ -15,15 +18,42 @@ import math
 service_name = "identify_colour_service"
 find_colour = False
 
-pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 vel = Twist()
 cvbridge_interface = CvBridge()
+front_min = 999
+left_min = 999
+right_min = 999
 
+def callback_lidar(lidar_data):
+    global front_min,left_min,right_min
+
+    # get the front the robot from a +/- 10 degree arc
+    front_left_arc = lidar_data.ranges[0:5]
+    front_right_arc = lidar_data.ranges[-5:]
+    front_arc = np.array(front_left_arc + front_right_arc)
+
+    # get the left side of the robot
+    #left_left_arc = lidar_data.ranges[15:38]
+    #left_right_arc = lidar_data.ranges[38:60]
+    left_left_arc = lidar_data.ranges[15:30]
+    left_right_arc = lidar_data.ranges[30:45]
+    left_arc = np.array(left_left_arc + left_right_arc)
+
+    # get the right side of the robot
+    right_left_arc = lidar_data.ranges[300:323]
+    right_right_arc = lidar_data.ranges[323:345]
+    right_arc = np.array(right_left_arc + right_right_arc)
+
+    # get the closest distance from the arcs
+    front_min = front_arc.min()
+    left_min = left_arc.min()
+    right_min = right_arc.min()
 
 
 def callback_service(service_request):
-    global find_colour
-    global colour 
+    global find_colour,colour
+    
     service_response = SetBoolResponse()
 
     target_degree = math.pi/5
@@ -45,6 +75,11 @@ def callback_service(service_request):
         service_response.response_message = colour
 
         # Start to navigate
+        if colour != "":
+            rospy.Subscriber('scan', LaserScan, callback_lidar)
+            velocity_changing()
+        else:
+            print("Sorry, doesnt get the goal colour :(")
          
     else:
         service_response.response_signal = False
@@ -68,10 +103,42 @@ def turning(turning_degree,wait_time):
         vel.angular.z = 0.0
         pub.publish(vel)
 
+def velocity_changing():
+    start_time = time.time()
+    execution_time = 0
+
+    while execution_time < 150:
+
+        execution_time = time.time() - start_time
+        print(f"Minimum distance from right wall: {right_min}, time: {execution_time}")
+
+        if front_min > 0.4:
+        # Nothing is directly in-front!
+            if right_min < 0.33:
+                # We are too close to the left wall - back up!
+                vel.linear.x = 0
+                vel.angular.z = 0.8
+                
+            elif right_min > 0.38:
+                    # We are to far away from the left wall - move closer!
+                    vel.linear.x = 0.25
+                    vel.angular.z = -0.7
+
+            else:
+                    vel.linear.x = 0.25
+                    vel.angular.z = 0.7
+
+        else:
+                # Obstacle detected in front! Turning away
+                vel.linear.x = 0.0
+                vel.angular.z = 0.8
+
+        pub.publish(vel)
+        
 
 def callback_camera(img_data):
-    global find_colour
-    global colour 
+    global find_colour, colour
+
     # Thresholds for ["Blue", "Red", "Green", "Turquoise", "Yellow", "Purple"]
     #lower_list = [(115, 224, 100), (0, 185, 100), 
     # (25, 150, 100), (75, 150, 100), (25,225,100), (145,225,100)]

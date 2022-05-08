@@ -1,0 +1,6 @@
+<launch>
+  <node pkg= "team2" type= "task4_server.py" name="cfserver" output="screen">
+  </node>
+  <node pkg= "team2" type= "task4_client.py" name="cfclient" output="screen">
+  </node>
+</launch>

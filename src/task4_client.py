@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rospy
 from com2009_msgs.srv import SetBool, SetBoolRequest
 import sys
