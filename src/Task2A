@@ -12,7 +12,7 @@ from tf.transformations import euler_from_quaternion
 from math import degrees, radians, sqrt
 import numpy as np
 
-class Test:
+class Task2A :
     """Class create to move the bot, avoid obstacles, rotate the bot and explore the area in a given amount of time
     """
 
@@ -141,5 +141,5 @@ class Test:
         
 
 if __name__ == '__main__':
-    rospy.init_node('assignment', anonymous=True)
-    test = Test()
+    rospy.init_node('Task2A', anonymous=True)
+    Task2A = Task2A()
