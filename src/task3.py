@@ -75,11 +75,11 @@ class Task3:
             if self.front_min > 0.4:
                 # Nothing is directly in-front!
                 if self.right_min < 0.33:
-                    # We are too close to the left wall - back up!
+                    # We are too close to the left wall - turn!
                     self.vel.linear.x = 0
                     self.vel.angular.z = 0.8
                 
-                elif self.right_min > 0.38:
+                elif self.right_min > 0.34:
                     # We are to far away from the left wall - move closer!
                     self.vel.linear.x = 0.25
                     self.vel.angular.z = -0.7

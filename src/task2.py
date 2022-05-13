@@ -19,9 +19,8 @@ class Task2:
         self.velocity_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=10)
         self.lidar_subscriber = rospy.Subscriber('scan', LaserScan, self.callback_lidar)
 
-        self.front_min = 999
-        self.left_min = 999
-        self.right_min = 999
+        self.min = 999
+        self.argmin = 10
 
         self.rate = rospy.Rate(10) # hz        
         self.vel = Twist()
@@ -32,45 +31,51 @@ class Task2:
         rospy.loginfo(f"the {node_name} node has been initialised...")
 
     def callback_lidar(self, lidar_data):
+        # get the front arc of the robot
+        left_arc = lidar_data.ranges[0:30]
+        right_arc = lidar_data.ranges[-30:]
+        front_arc = np.array(left_arc + right_arc)
 
-        # get the left side of the robot
-        left_left_arc = lidar_data.ranges[0:20]
-        left_right_arc = lidar_data.ranges[20:40]
-        left_arc = np.array(left_left_arc + left_right_arc)
-
-        # get the right side of the robot
-        right_left_arc = lidar_data.ranges[-20:]
-        right_right_arc = lidar_data.ranges[320:340]
-        right_arc = np.array(right_left_arc + right_right_arc)
-
-        # get the closest distance from the arcs
-        self.left_min = left_arc.min()
-        self.right_min = right_arc.min()
+        # get the closest distance and the argmin of the closest distance
+        self.min = front_arc.min()
+        self.argmin = front_arc.argmin()
 
     def shutdownhook(self):
         self.velocity_publisher.publish(Twist())
         self.ctrl_c = True
     
     def print_lidar(self):
-        print(f"front min: {self.front_min}, left min: {self.left_min}, right min: {self.right_min}")
+        print(f"Minimum distance in-front: {self.min}")
 
     def main_loop(self):
 
-        threshold = 0.75
-        multiplier = 1
+        start_time = time.time()
+        execution_time = 0
+        threshold_distance = 0.5
+        moving_speed = 0.26
+        turning_speed = 1.8
 
-        while not self.ctrl_c:
+        while not self.ctrl_c and execution_time < 90:
+            execution_time = time.time() - start_time
             
-            if self.right_min < threshold:
-                self.vel.linear.x = 0.2
-                self.vel.angular.z = multiplier * (1 / self.right_min)
-            elif self.left_min < threshold:
-                self.vel.linear.x = 0.2
-                self.vel.angular.z = -multiplier * (1 / self.left_min)
+            # if there's an obstacle in-front
+            if self.min < threshold_distance:
+                if not turning:
+                    # grab the min distance argmin to determine which direction to turn in
+                    start_argmin = self.argmin
+                    turning = True
+                else:
+                    # stop the robot and turn the robot (until in-front is clear)
+                    self.vel.linear.x = 0.0
+                    if start_argmin < 30:
+                        self.vel.angular.z = -turning_speed
+                    else:
+                        self.vel.angular.z = turning_speed
             else:
+                # if in-front is clear, set turning to false and move forwards again!
+                turning = False
+                self.vel.linear.x = moving_speed
                 self.vel.angular.z = 0
-                
-            self.vel.linear.x = 0.3
 
             self.velocity_publisher.publish(self.vel)
             self.rate.sleep()
