@@ -1,33 +1,36 @@
 #!/usr/bin/env python3
  
 import rospy
-from com2009_msgs.srv import SetBool,SetBoolResponse, SetBoolRequest
-from geometry_msgs.msg import Twist
-import cv2
+from tf.transformations import euler_from_quaternion
 from cv_bridge import CvBridge,CvBridgeError
 from sensor_msgs.msg import Image,LaserScan
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 import numpy as np
 import time
-from nav_msgs.msg import Odometry
 import math
+import cv2
 
 class Task4:
-    def __init__(self):
-        rospy.init_node("identify_colour_service_server")
-        rospy.loginfo("Starting Task4.")
-        my_service = rospy.Service("identify_colour_service", SetBool, self.callback_service)
 
-        rospy.Subscriber("/odom", Odometry, self.odom_cb)
-        rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback_camera)
-        rospy.Subscriber('scan', LaserScan, self.callback_lidar)
-        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        
-        self.exploration_trigger = rospy.ServiceProxy('exploration/enable', SetBool)
+    def __init__(self):
+
+        node_name = "task4"
+        rospy.init_node(node_name, anonymous=True)
+
+        self.odom_subscriber = rospy.Subscriber("/odom", Odometry, self.callback_odom)
+        self.camera_subscriber = rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback_camera)
+        self.lidar_subscriber = rospy.Subscriber('/scan', LaserScan, self.callback_lidar)
+        self.velocity_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
         self.cvbridge_interface = CvBridge()
         self.find_colour = True
         self.colour = "" 
+        self.startup = True
         
+        self.min = 999 # minimum distance of obstacle in-front of robot
+        self.argmin = 25 # index of minimum distance in array 
+
         self.lower = (0,0,0)
         self.upper = (0,0,0)
         self.cy = 0.0
@@ -39,26 +42,64 @@ class Task4:
         self.got_frame = False
         self.position_x = 0.0
         self.position_y = 0.0        
-        
         self.init_position_x = 0.0
         self.init_position_y = 0.0
         self.width = 0.0
-        self.lidar_data = LaserScan()
+        self.lidar_data = LaserScan() # ?
 
+        self.rate = rospy.Rate(10)
+        self.vel = Twist()
+        self.ctrl_c = False
 
-    def odom_cb(self, msg):
-        self.position_x = msg.pose.pose.position.x
-        self.position_y = msg.pose.pose.position.y
+        rospy.on_shutdown(self.shutdownhook)
+        rospy.loginfo(f"The {node_name} node has been initialised!")
 
-    def callback_camera(self, msg):
-        """
-        Create common callback function to subscribe image msgs and store it in global variable self.img_data
-        to use for the diffrent membur functions e.g detect_color and beacon_detetction
-        """
-        self.img_data = msg 
+    def shutdownhook(self):
+        self.velocity_publisher.publish(Twist())
+        self.ctrl_c = True
+
+    def callback_lidar(self, lidar_data):
+        # get the ranges of robot front arc 
+        left_arc = lidar_data.ranges[0:25]
+        right_arc = lidar_data.ranges[-25:]
+        front_arc = np.array(left_arc + right_arc)
+
+        left_arc = lidar_data.ranges[0:5]
+        right_arc = lidar_data.ranges[-5:]
+        lock_on_arc = np.array(left_arc + right_arc)
+
+        # get the closest distance and the index of the closest distance
+        self.min = front_arc.min()
+        self.argmin = front_arc.argmin()
+        self.lock_min = lock_on_arc.min()
+
+    def callback_odom(self, odom_data):
+        pos_x = odom_data.pose.pose.position.x
+        pos_y = odom_data.pose.pose.position.y
+
+        or_x = odom_data.pose.pose.orientation.x
+        or_y = odom_data.pose.pose.orientation.y
+        or_z = odom_data.pose.pose.orientation.z
+        or_w = odom_data.pose.pose.orientation.w
+
+        (_, _, yaw) = euler_from_quaternion([or_x, or_y, or_z, or_w], 'sxyz')
+        
+        self.x = pos_x
+        self.y = pos_y
+        self.theta_z = yaw 
+
+        if self.startup:
+            self.startup = False
+            self.x0 = self.x
+            self.y0 = self.y
+            self.theta_z0 = self.theta_z
+
+    def callback_camera(self, img_data):
+        self.img_data = img_data
         self.got_frame = True # flag to check if new data received
         
     def detect_color(self):
+
         if self.got_frame: # process only if new data is received in topic
             blue_lower = (115, 224, 100)
             blue_upper = (130, 255, 255)
@@ -87,6 +128,7 @@ class Task4:
 
             crop_img = cv_img[crop_y:crop_y+crop_height, crop_x:crop_x+crop_width]
             hsv_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2HSV)    
+
             # create a single mask to accommodate all six dectection colours:
             blue = cv2.inRange(hsv_img, blue_lower, blue_upper).mean(axis=0).mean(axis=0)
             red = cv2.inRange(hsv_img, red_lower, red_upper).mean(axis=0).mean(axis=0)
@@ -120,12 +162,13 @@ class Task4:
                 self.colour = "can't read the self.colour"
                 
             # Give a feedback
-            print (f"SRARCH INITIATED: The target beacon colour is {self.colour}")
-            self.got_frame = False #re unset flag
+            print (f"SEARCH INITIATED: The target beacon colour is {self.colour}")
+            self.got_frame = False # re unset flag
 
     def beacon_detetction(self):
+
         if self.got_frame: # process only if new data is received in topic
-            print(self.colour, self.cy)
+            # print(self.colour, self.cy)
 
             blue_lower = (115, 224, 100)
             blue_upper = (130, 255, 255) 
@@ -146,7 +189,7 @@ class Task4:
                 print(e)
 
             height, width, _ = cv_img.shape
-            print(height, width)
+            # print(height, width)
             crop_width = width - 1120
             crop_height = 120
             crop_x = int((width/2) - (crop_width/2))
@@ -175,6 +218,7 @@ class Task4:
                 self.upper = purple_upper 
             else:
                 print("Can't detect colour")
+
             mask = cv2.inRange(hsv_img, self.lower, self.upper)
             m = cv2.moments(mask)
                     
@@ -184,142 +228,95 @@ class Task4:
             if self.m00 > self.m00_min:
                 cv2.circle(crop_img, (int(self.cy), int(crop_height/2)), 10, (0, 0, 255), 2)
                 
-                
             cv2.imshow("cropped image", crop_img)
             cv2.waitKey(1)
-            self.got_frame = False #re unset flag
 
+            self.got_frame = False # re unset flag
 
-    def toggle_exploration(self, req):
-        trigger = SetBoolRequest()
-        trigger.request_signal = req
-        # if req == False :
-        #     self.pub_cmd_vel(0,0,0.0)
-        try:
-            self.exploration_trigger.call(req)
-        except:
-            pass
+    def start_exploration(self):
 
-    def callback_service(self, req):
-        self.trigger_detection = req.request_signal
-        print("exploration trigger: ", self.trigger_detection)
-        
+        start_time = time.time()
+        execution_time = 0
+        threshold_distance = 0.5
+        moving_speed = 0.26
+        turning_speed = 1 # 1.6 for task a, 
+        turning = False
 
-    def pub_cmd_vel(self, vx, vy, vyaw):
+        while not self.ctrl_c: # and execution_time < 90:
+            execution_time = time.time() - start_time
             
-        vel = Twist()
-        vel.linear.x = vx
-        vel.linear.y = 0.0
-        vel.linear.z = 0.0
-        vel.angular.x = 0.0
-        vel.angular.y = 0.0
-        vel.angular.z = vyaw
+            dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))     
+            self.beacon_detetction() 
+            target_found = self.target_found()
 
-        self.pub.publish(vel)
+            if target_found and dist_current > 1.0: # not in start zone
+                self.align_target_move()
+                self.move_to_target()
+
+            else:
+                # if there's an obstacle in-front
+                if self.min < threshold_distance:
+                    if not turning:
+                        # grab the min distance argmin to determine which direction to turn in
+                        start_argmin = self.argmin
+                        turning = True
+                    else:
+                        # stop the robot and turn the robot (until in-front is clear)
+                        self.vel.linear.x = 0.0
+                        if start_argmin < 25:
+                            # turn right
+                            self.vel.angular.z = -turning_speed
+                        else:
+                            # turn left
+                            self.vel.angular.z = turning_speed
+                else:
+                    # if in-front is clear, set turning to false and move forwards again!
+                    turning = False
+                    self.vel.linear.x = moving_speed
+                    self.vel.angular.z = 0
+
+            self.velocity_publisher.publish(self.vel)
+            self.rate.sleep()
 
     def target_found(self):
-
         if self.m00 > self.m00_min:
             print (f"TARGET DETECTED: The target beacon colour is {self.colour}")
-
-            # blob detected
-            # print("TARGET FOUND")
             return True
         else:
-            # print(f"MOVING FAST: I can't see anything at the moment (blob size = {self.m00:.0f}), scanning the area...")
-            # print("TARGET NOT FOUND")
             return False
 
     def align_target_move(self):
+
         lower_lim = (self.width/2)-((25/100)*self.width)
         upper_lim = (self.width/2)+((25/100)*self.width)
-        print("lower_lim ", lower_lim, " :: " "upper_lim ", upper_lim, " :: ", "self.cy ", self.cy)
-        if not (self.cy >= lower_lim and self.cy <= upper_lim):
-            
-            # self.pub_cmd_vel(0.0, 0.0, 0.3)
-            
-            if self.cy < lower_lim:
-                self.pub_cmd_vel(0.0, 0.0, 0.5)
-            elif self.cy > upper_lim:
-                self.pub_cmd_vel(0.0, 0.0, -0.5)
 
-            return False
-        else:
-            return True
-    
-    def callback_lidar(self, msg):
-        self.lidar_data = msg
-        # get the front the robot from a +/- 10 degree arc
-        
+        print("lower_lim ", lower_lim, " :: " "upper_lim ", upper_lim, " :: ", "self.cy ", self.cy)
+
+        self.vel.linear.x = 0.26
+
+        if self.cy < lower_lim:     
+            self.vel.angular.z = 0.25
+        else: # self.cy > upper_lim
+            self.vel.angular.z = -0.25
         
     def move_to_target(self):
-        front_left_arc = self.lidar_data.ranges[0:5]
-        front_right_arc = self.lidar_data.ranges[-5:]
-        front_arc = np.array(front_left_arc + front_right_arc)
-
-        # get the left side of the robot
-        #left_left_arc = self.lidar_data.ranges[15:38]
-        #left_right_arc = self.lidar_data.ranges[38:60]
-        left_left_arc = self.lidar_data.ranges[15:30]
-        left_right_arc = self.lidar_data.ranges[30:45]
-        left_arc = np.array(left_left_arc + left_right_arc)
-
-        # get the right side of the robot
-        right_left_arc = self.lidar_data.ranges[300:323]
-        right_right_arc = self.lidar_data.ranges[323:345]
-        right_arc = np.array(right_left_arc + right_right_arc)
-
-        # get the closest distance from the arcs
-        front_min = front_arc.min()
-        left_min = left_arc.min()
-        right_min = right_arc.min()
-
-
-        if front_min < 0.5:
-            linear_x = 0.0
-            angular_z = 0.0
-        # else:
-        #     # Obstacle detected in front! Turning away
-        #     linear_x = 0.0
-        #     angular_z = 0.0
+        if self.lock_min < 0.45:
             print (f"BEACONING COMPLETE: The robot has now stopped.")
-
-
-            self.pub_cmd_vel(linear_x,0,angular_z)
-
-    
-    def main(self):
-        init = False
-        exploration_state = True
-
-        while not rospy.is_shutdown():
-
-            while not rospy.is_shutdown() and not init: # loop to initialize robot with color detection
-                self.detect_color() # detect start position color
-                self.pub_cmd_vel(0,0,1.0) # while turning the robot heading
-                self.init_position_x = self.position_x # get initial position of robot
-                self.init_position_y = self.position_y
-                print("detecting color")
-                if self.color_detected: # check if color is detected
-                    print("Color Detected: ",self.color_detected, "  Exploratrion Started") 
-                    print (f"SRARCH INITIATED: The target beacon colour is {self.colour}")
-                    self.toggle_exploration(True) # call service (Task 2) to start exploration
-                    init = True # set flag onde initialised
-                    break # break loop
-
-            while not rospy.is_shutdown() and exploration_state==True: #Loop to detection and exploration
-                dist_current = math.sqrt( (self.init_position_x-self.position_x)**2 + (self.init_position_y-self.position_y)**2  ) # used to filter the start position detection
-                self.beacon_detetction() # function to detect beacon
-                target_found = self.target_found() # check if target found
-                if target_found and dist_current>1.0: # if target found but its not in the initial location area of radius (1.0 m) ie start zone
-                    
-                    self.toggle_exploration(False) # turn exploration off if target detected
-                    if self.align_target_move(): # alighn target in frame and check once done alignment
-                        self.toggle_exploration(True) # toggle exploration on to move to target while avoiding obstacles
-                        self.move_to_target()
+            self.shutdownhook()
             
+    def main(self):
 
+        while not self.ctrl_c: 
+            if not self.color_detected:
+                self.detect_color() # detect start position color
+                self.vel.angular.z = 1 # while turning the robot heading
+            
+            elif self.color_detected: # check if color is detected
+                print(f"SEARCH INITIATED: The target beacon colour is {self.colour}")
+                self.start_exploration() # call to start exploration
 
+            self.velocity_publisher.publish(self.vel)
+            self.rate.sleep()
 
 if __name__ == "__main__":
     ros_node = Task4()

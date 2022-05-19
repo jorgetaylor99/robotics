@@ -60,7 +60,6 @@ class Task2:
                 else:
                     # stop the robot and turn the robot (until in-front is clear)
                     self.vel.linear.x = 0.0
-                    print(start_argmin)
                     if start_argmin <= 25:
                         # turn right
                         self.vel.angular.z = -turning_speed

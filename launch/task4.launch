@@ -1,8 +1,4 @@
 <launch>
-  <node pkg= "team2" type= "task4_server.py" name="cfserver" output="screen">
+  <node pkg="team2" type="task4.py" name="task4" output="screen">
   </node>
-
-  <include file="$(find team2)/launch/task2.launch">
-    <arg name="init_exploration_start" value="false"/>
-  </include>
 </launch>
