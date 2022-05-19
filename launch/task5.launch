@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="team2" type="task5.py" name="task5" output="screen">
+  </node>
+</launch>
