@@ -1,4 +1,10 @@
 <launch>
-  <node pkg="team2" type="task5.py" name="task5" output="screen">
-  </node>
+    <!-- <include file="$(find com2009_assignment2)/launch/exploration.launch" /> -->
+
+    <arg name="target_colour" default="yellow"/>
+  
+    <node pkg="team2" type="task5.py" name="task5" output="screen" args="-target_colour $(arg target_colour)" />
+
+    <!-- rviz -->
+    <!-- <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
 </launch>

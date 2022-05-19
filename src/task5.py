@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
  
 import rospy
+import roslaunch
 from tf.transformations import euler_from_quaternion
 from cv_bridge import CvBridge,CvBridgeError
 from sensor_msgs.msg import Image,LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from std_msgs.msg import String
 import numpy as np
 import time
 import math
 import cv2
+import argparse
 
 class Task4:
 
@@ -28,6 +31,17 @@ class Task4:
         self.colour = "" 
         self.startup = True
         
+        self.map_path = "$(find team2/maps/task5_map.pgm)"
+        self.launch = roslaunch.scriptapi.ROSLaunch()
+        self.launch.start()
+
+        # Command-Line Interface:
+        cli = argparse.ArgumentParser(description=f"Command-line interface for the task5 node.")
+        cli.add_argument("-target_colour", metavar="COL", type=String, help="The colour of target beacon.")
+       
+        # obtain the arguments passed to this node from the command-line:
+        self.args = cli.parse_args(rospy.myargv()[1:])
+
         self.min = 999 # minimum distance of obstacle in-front of robot
         self.argmin = 25 # index of minimum distance in array 
         self.front_min = 999
@@ -107,72 +121,15 @@ class Task4:
         self.img_data = img_data
         self.got_frame = True # flag to check if new data received
         
-    def detect_color(self):
+    def get_width(self):
+        try:
+            cv_img = self.cvbridge_interface.imgmsg_to_cv2(self.img_data, desired_encoding="bgr8")
+        except CvBridgeError as e:
+            print(e)
 
-        if self.got_frame: # process only if new data is received in topic
-            blue_lower = (115, 224, 100)
-            blue_upper = (130, 255, 255)
-            red_lower = (0, 185, 100)
-            red_upper = (10, 255, 255)
-            green_lower = (25, 150, 100)
-            green_upper = (70, 255, 255)
-            turquoise_lower = (75, 150, 100)
-            turquoise_upper = (100, 255, 255)
-            yellow_lower = (25, 225, 100)
-            yellow_upper = (35, 255, 255)
-            purple_lower = (145, 225, 100)
-            purple_upper = (155, 255, 255)
-            
-            try:
-                cv_img = self.cvbridge_interface.imgmsg_to_cv2(self.img_data, desired_encoding="bgr8")
-            except CvBridgeError as e:
-                print(e)
-
-            height, width,_ = cv_img.shape
-            crop_width = width - 800
-            crop_height = 400
-            self.width = crop_width
-            crop_x = int((width/2) - (crop_width/2))
-            crop_y = int((height/2) - (crop_height/2))
-
-            crop_img = cv_img[crop_y:crop_y+crop_height, crop_x:crop_x+crop_width]
-            hsv_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2HSV)    
-
-            # create a single mask to accommodate all six dectection colours:
-            blue = cv2.inRange(hsv_img, blue_lower, blue_upper).mean(axis=0).mean(axis=0)
-            red = cv2.inRange(hsv_img, red_lower, red_upper).mean(axis=0).mean(axis=0)
-            green = cv2.inRange(hsv_img, green_lower, green_upper).mean(axis=0).mean(axis=0)
-            turquoise = cv2.inRange(hsv_img, turquoise_lower, turquoise_upper).mean(axis=0).mean(axis=0)
-            yellow = cv2.inRange(hsv_img, yellow_lower, yellow_upper).mean(axis=0).mean(axis=0)
-            purple = cv2.inRange(hsv_img, purple_lower, purple_upper).mean(axis=0).mean(axis=0)
-            
-            # Start to find the colour
-            # while self.find_colour == True:
-            if (int(blue) == 255):
-                self.colour = "Blue"
-                self.color_detected = True
-            elif (int(red) == 255):
-                self.color_detected = True
-                self.colour = "Red"
-            elif (int(green) == 255):
-                self.color_detected = True
-                self.colour = "Green"
-            elif (int(yellow) == 255):
-                self.color_detected = True
-                self.colour = "Yellow"
-            elif (int(turquoise) == 255):
-                self.color_detected = True
-                self.colour = "Turquoise"
-            elif (int(purple) == 255):
-                self.color_detected = True
-                self.colour = "Purple"
-            else:
-                self.color_detected = False
-                self.colour = "can't read the self.colour"
-                
-            # Give a feedback
-            print (f"SEARCH INITIATED: The target beacon colour is {self.colour}")
-            self.got_frame = False # re unset flag
+        _, width,_ = cv_img.shape
+        crop_width = width - 800
+        self.width = crop_width
 
     def beacon_detetction(self):
 
@@ -207,22 +164,22 @@ class Task4:
             crop_img = cv_img[crop_y:crop_y+crop_height, crop_x:crop_x+crop_width]
             hsv_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2HSV)
 
-            if (self.colour == "Blue"):
+            if (self.colour == "blue"):
                 self.lower = blue_lower
                 self.upper = blue_upper
-            elif (self.colour == "Red"):
+            elif (self.colour == "red"):
                 self.lower = red_lower
                 self.upper = red_upper
-            elif (self.colour == "Green"):
+            elif (self.colour == "green"):
                 self.lower = green_lower
                 self.upper = green_upper
-            elif (self.colour == "Yellow"):
+            elif (self.colour == "yellow"):
                 self.lower = yellow_lower
                 self.upper = yellow_upper
-            elif (self.colour == "Turquoise"):
+            elif (self.colour == "turquoise"):
                 self.lower = turquoise_lower
                 self.upper = turquoise_upper 
-            elif (self.colour == "Purple"):
+            elif (self.colour == "purple"):
                 self.lower = purple_lower
                 self.upper = purple_upper 
             else:
@@ -251,18 +208,23 @@ class Task4:
         moving_speed = 0.15
         front_threshold = 0.35
         side_threshold = 0.3
+        count = 0
+        image_taken = False
 
         while not self.ctrl_c: # and execution_time < 150:
 
-            # dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))     
-            self.beacon_detetction() 
-            target_found = self.target_found()
+            
+            # dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))
+            if not image_taken:     
+                self.beacon_detetction() 
+                target_found = self.target_found()
 
             if target_found: #and dist_current > 1.0: # not in start zone
                 self.align_target_move()
-                self.move_to_target()
+                self.take_image()
 
             else:
+                print("hit")
                 if self.front_min > front_threshold:
                     # Nothing detected in front, move forward
 
@@ -281,6 +243,13 @@ class Task4:
                     self.vel.linear.x = 0.0
                     self.vel.angular.z = -right_turning_speed
 
+            # if count % 1000 == 0:
+            #     print(f"Saving map at time: {rospy.get_time()}...")
+            #     node = roslaunch.core.Node(package="map_server", node_type="map_saver", args=f"-f {self.map_path}")
+            #     process = self.launch.launch(node)
+
+            count += 1
+
             self.velocity_publisher.publish(self.vel)
             self.rate.sleep()
 
@@ -298,19 +267,25 @@ class Task4:
 
         print("lower_lim ", lower_lim, " :: " "upper_lim ", upper_lim, " :: ", "self.cy ", self.cy)
 
-        self.vel.linear.x = 0.26
+        self.vel.linear.x = 0
 
         if self.cy < lower_lim:     
-            self.vel.angular.z = 0.25
+            self.vel.angular.z = -0.1
         else: # self.cy > upper_lim
-            self.vel.angular.z = -0.25
+            self.vel.angular.z = 0.1
         
-    def move_to_target(self):
-        if self.lock_min < 0.45:
-            print (f"BEACONING COMPLETE: The robot has now stopped.")
-            self.shutdownhook()
+    def take_image(self):
+        return
+        # if self.cy in the middle:
+        #     save image
+        #     image_taken = True
+        #     target_found = False
             
     def main(self):
+
+        self.get_width()
+
+        self.colour = self.args.target_colour.data
 
         while not self.ctrl_c: 
 

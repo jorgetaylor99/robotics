@@ -290,15 +290,13 @@ class Task4:
         lower_lim = (self.width/2)-((25/100)*self.width)
         upper_lim = (self.width/2)+((25/100)*self.width)
 
-        print("lower_lim ", lower_lim, " :: " "upper_lim ", upper_lim, " :: ", "self.cy ", self.cy)
-
         self.vel.linear.x = 0.26
 
         if self.cy < lower_lim:     
-            self.vel.angular.z = 0.25
+            self.vel.angular.z = 0.1
         else: # self.cy > upper_lim
-            self.vel.angular.z = -0.25
-        
+            self.vel.angular.z = -0.1
+
     def move_to_target(self):
         if self.lock_min < 0.45:
             print (f"BEACONING COMPLETE: The robot has now stopped.")
