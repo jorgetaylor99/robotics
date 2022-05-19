@@ -63,13 +63,13 @@ class Task4:
     def callback_lidar(self, lidar_data):
 
         # get the front arc of the robot
-        front_left_arc = lidar_data.ranges[0:3]
-        front_right_arc = lidar_data.ranges[-3:]
+        front_left_arc = lidar_data.ranges[0:35]
+        front_right_arc = lidar_data.ranges[-10:]
         front_arc = np.array(front_left_arc + front_right_arc)
 
         # get the right side of the robot
-        left_left_arc = lidar_data.ranges[5:35]
-        left_right_arc = lidar_data.ranges[35:65]
+        left_left_arc = lidar_data.ranges[0:35]
+        left_right_arc = lidar_data.ranges[35:70]
         left_arc = np.array(left_left_arc + left_right_arc)
 
         lock_left_arc = lidar_data.ranges[0:5]
@@ -246,10 +246,10 @@ class Task4:
 
         start_time = time.time()
         execution_time = 0
-        right_turning_speed = 0.5
-        left_turning_speed = 0.35
-        moving_speed = 0.12
-        front_threshold = 0.3
+        right_turning_speed = 0.8
+        left_turning_speed = 0.2
+        moving_speed = 0.15
+        front_threshold = 0.35
         side_threshold = 0.3
 
         while not self.ctrl_c: # and execution_time < 150:
