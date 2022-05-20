@@ -214,51 +214,35 @@ class Task5:
         moving_speed = 0.15
         front_threshold = 0.35
         side_threshold = 0.3
-        count = 0
-        image_taken = False
         boundary_time = 0
 
         while not self.ctrl_c: # and execution_time < 150:
 
             execution_time = time.time() - start_time
 
-            # dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))
-            if not image_taken:     
-                self.beacon_detetction() 
-                target_found = self.target_found()
+            if self.front_min > front_threshold:
+                # Nothing detected in front, move forward
 
-            # if target_found: #and dist_current > 1.0: # not in start zone
-            #     self.align_target_move()
-            #     self.take_image()
-            if self.ctrl_c:
-                pass
-            else:
-                #print("hit")
-                if self.front_min > front_threshold:
-                    # Nothing detected in front, move forward
-
-                    if self.left_min < side_threshold:
-                        # Too close to right wall, turn away!
-                        self.vel.linear.x = moving_speed
-                        self.vel.angular.z = -left_turning_speed
-                    
-                    else:
-                        # Too far away from the right wall, move closer!
-                        self.vel.linear.x = moving_speed
-                        self.vel.angular.z = right_turning_speed
-
+                if self.left_min < side_threshold:
+                    # Too close to right wall, turn away!
+                    self.vel.linear.x = moving_speed
+                    self.vel.angular.z = -left_turning_speed
+                
                 else:
-                    # Obstacle detected in front, stop and turn away!
-                    self.vel.linear.x = 0.0
-                    self.vel.angular.z = -right_turning_speed
+                    # Too far away from the right wall, move closer!
+                    self.vel.linear.x = moving_speed
+                    self.vel.angular.z = right_turning_speed
+
+            else:
+                # Obstacle detected in front, stop and turn away!
+                self.vel.linear.x = 0.0
+                self.vel.angular.z = -right_turning_speed
 
             if execution_time > boundary_time:
                 print(f"Saving map at time: {rospy.get_time()}...")
                 node = roslaunch.core.Node(package="map_server", node_type="map_saver", args=f"-f {self.map_path}")
                 process = self.launch.launch(node)
                 boundary_time += 5
-
-            count += 1
 
             self.velocity_publisher.publish(self.vel)
             self.rate.sleep()
@@ -285,25 +269,11 @@ class Task5:
             self.vel.angular.z = 0.1
         
     def take_image(self):
-        full_image_path = self.base_image_path.joinpath(f"the_beacon.jpg")
 
         image_taken = True
         target_found = False
 
         return(image_taken, target_found)
-
-        # cv2.imshow(self, img)
-        # cv2.waitKey(0)
-
-        # cv2.imwrite(str(full_image_path), img)
-        # print(f"Saved an image to '{full_image_path}'\n"
-        # f"image dims = {img.shape[0]}x{img.shape[1]}px\n"
-        # f"file size = {full_image_path.stat().st_size} bytes")
-        #return
-        # if self.cy in the middle:
-        #     save image
-        #     image_taken = True
-        #     target_found = False
             
     def main(self):
 

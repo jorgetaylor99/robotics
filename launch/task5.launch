@@ -1,8 +1,5 @@
 <launch>
   <arg name="target_colour" default="yellow"/>
-  
   <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch" />
   <node pkg="team2" type="task5.py" name="task5" output="screen" args="-target_colour $(arg target_colour)" />
-
-  <!--<node pkg="team2" type="image_saver.py" name="image_saver" output="screen" />-->
 </launch>

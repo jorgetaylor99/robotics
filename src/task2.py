@@ -44,11 +44,11 @@ class Task2:
         
         start_time = time.time()
         execution_time = 0
-        threshold_distance = 0.5
-        moving_speed = 0.26
-        turning_speed = 0.8
+        threshold_distance = 0.6
+        moving_speed = 0.5
+        turning_speed = 1
 
-        while not self.ctrl_c: # and execution_time < 90:
+        while not self.ctrl_c and execution_time < 90:
             execution_time = time.time() - start_time
             
             # if there's an obstacle in-front
@@ -60,7 +60,7 @@ class Task2:
                 else:
                     # stop the robot and turn the robot (until in-front is clear)
                     self.vel.linear.x = 0.0
-                    if start_argmin <= 25:
+                    if start_argmin < 25:
                         # turn right
                         self.vel.angular.z = -turning_speed
                     else:

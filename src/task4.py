@@ -94,6 +94,13 @@ class Task4:
             self.y0 = self.y
             self.theta_z0 = self.theta_z
 
+            if self.x0 < 0 and self.y0 < 0:
+                self.starting_position = "a"
+            elif self.x0 < 0 and self.y0 > 0:
+                self.starting_position = "b"
+            else:
+                self.starting_position = "c"
+
     def callback_camera(self, img_data):
         self.img_data = img_data
         self.got_frame = True # flag to check if new data received
@@ -159,10 +166,7 @@ class Task4:
                 self.colour = "Purple"
             else:
                 self.color_detected = False
-                self.colour = "can't read the self.colour"
                 
-            # Give a feedback
-            print (f"SEARCH INITIATED: The target beacon colour is {self.colour}")
             self.got_frame = False # re unset flag
 
     def beacon_detetction(self):
@@ -235,19 +239,31 @@ class Task4:
 
     def start_exploration(self):
 
-        start_time = time.time()
-        execution_time = 0
-        threshold_distance = 0.5
-        moving_speed = 0.26
-        turning_speed = 1 # 1.6 for task a, 
+        if self.starting_position == "a":
+            threshold_distance = 0.6
+            moving_speed = 0.45
+            turning_speed = 1
+        elif self.starting_position == "b":
+            threshold_distance = 0.6
+            moving_speed = 0.4
+            turning_speed = 0.75  
+        else:
+            threshold_distance = 0.6
+            moving_speed = 0.45
+            turning_speed = 0.8
+
         turning = False
+        started_targetting = False
 
         while not self.ctrl_c: # and execution_time < 90:
-            execution_time = time.time() - start_time
-            
+
             dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))     
             self.beacon_detetction() 
             target_found = self.target_found()
+
+            if target_found and not started_targetting and dist_current > 1.0:
+                print (f"TARGET DETECTED: Beaconing initiated.")
+                started_targetting = True
 
             if target_found and dist_current > 1.0: # not in start zone
                 self.align_target_move()
@@ -280,7 +296,6 @@ class Task4:
 
     def target_found(self):
         if self.m00 > self.m00_min:
-            print (f"TARGET DETECTED: The target beacon colour is {self.colour}")
             return True
         else:
             return False
@@ -293,9 +308,9 @@ class Task4:
         self.vel.linear.x = 0.26
 
         if self.cy < lower_lim:     
-            self.vel.angular.z = 0.1
+            self.vel.angular.z = 0.2
         else: # self.cy > upper_lim
-            self.vel.angular.z = -0.1
+            self.vel.angular.z = -0.2
 
     def move_to_target(self):
         if self.lock_min < 0.45:

@@ -53,7 +53,7 @@ class Task3:
         left_turning_speed = 0.25
         moving_speed = 0.26
         front_threshold = 0.45
-        side_threshold = 0.4
+        side_threshold = 0.35
 
         while not self.ctrl_c: # and execution_time < 150:
 
