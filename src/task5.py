@@ -6,6 +6,7 @@ from tf.transformations import euler_from_quaternion
 from cv_bridge import CvBridge,CvBridgeError
 from sensor_msgs.msg import Image,LaserScan
 from geometry_msgs.msg import Twist
+from pathlib import Path
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 import numpy as np
@@ -14,11 +15,11 @@ import math
 import cv2
 import argparse
 
-class Task4:
+class Task5:
 
     def __init__(self):
 
-        node_name = "task4"
+        node_name = "task5"
         rospy.init_node(node_name, anonymous=True)
 
         self.odom_subscriber = rospy.Subscriber("/odom", Odometry, self.callback_odom)
@@ -30,8 +31,12 @@ class Task4:
         self.find_colour = True
         self.colour = "" 
         self.startup = True
-        
-        self.map_path = "$(find team2/maps/task5_map.pgm)"
+
+        self.base_image_path = Path("../snaps")
+        self.base_image_path.mkdir(parents=True, exist_ok=True)
+        self.waiting_for_image = True
+
+        self.map_path = "$(find team2)/maps/task5_map"
         self.launch = roslaunch.scriptapi.ROSLaunch()
         self.launch.start()
 
@@ -122,14 +127,15 @@ class Task4:
         self.got_frame = True # flag to check if new data received
         
     def get_width(self):
-        try:
-            cv_img = self.cvbridge_interface.imgmsg_to_cv2(self.img_data, desired_encoding="bgr8")
-        except CvBridgeError as e:
-            print(e)
+        if self.got_frame:
+            try:
+                cv_img = self.cvbridge_interface.imgmsg_to_cv2(self.img_data, desired_encoding="bgr8")
+            except CvBridgeError as e:
+                print(e)
 
-        _, width,_ = cv_img.shape
-        crop_width = width - 800
-        self.width = crop_width
+            _, width,_ = cv_img.shape
+            crop_width = width - 800
+            self.width = crop_width
 
     def beacon_detetction(self):
 
@@ -210,21 +216,24 @@ class Task4:
         side_threshold = 0.3
         count = 0
         image_taken = False
+        boundary_time = 0
 
         while not self.ctrl_c: # and execution_time < 150:
 
-            
+            execution_time = time.time() - start_time
+
             # dist_current = math.sqrt(((self.x0 - self.x) ** 2) + ((self.y0 - self.y) ** 2))
             if not image_taken:     
                 self.beacon_detetction() 
                 target_found = self.target_found()
 
-            if target_found: #and dist_current > 1.0: # not in start zone
-                self.align_target_move()
-                self.take_image()
-
+            # if target_found: #and dist_current > 1.0: # not in start zone
+            #     self.align_target_move()
+            #     self.take_image()
+            if self.ctrl_c:
+                pass
             else:
-                print("hit")
+                #print("hit")
                 if self.front_min > front_threshold:
                     # Nothing detected in front, move forward
 
@@ -243,10 +252,11 @@ class Task4:
                     self.vel.linear.x = 0.0
                     self.vel.angular.z = -right_turning_speed
 
-            # if count % 1000 == 0:
-            #     print(f"Saving map at time: {rospy.get_time()}...")
-            #     node = roslaunch.core.Node(package="map_server", node_type="map_saver", args=f"-f {self.map_path}")
-            #     process = self.launch.launch(node)
+            if execution_time > boundary_time:
+                print(f"Saving map at time: {rospy.get_time()}...")
+                node = roslaunch.core.Node(package="map_server", node_type="map_saver", args=f"-f {self.map_path}")
+                process = self.launch.launch(node)
+                boundary_time += 5
 
             count += 1
 
@@ -275,7 +285,21 @@ class Task4:
             self.vel.angular.z = 0.1
         
     def take_image(self):
-        return
+        full_image_path = self.base_image_path.joinpath(f"the_beacon.jpg")
+
+        image_taken = True
+        target_found = False
+
+        return(image_taken, target_found)
+
+        # cv2.imshow(self, img)
+        # cv2.waitKey(0)
+
+        # cv2.imwrite(str(full_image_path), img)
+        # print(f"Saved an image to '{full_image_path}'\n"
+        # f"image dims = {img.shape[0]}x{img.shape[1]}px\n"
+        # f"file size = {full_image_path.stat().st_size} bytes")
+        #return
         # if self.cy in the middle:
         #     save image
         #     image_taken = True
@@ -296,7 +320,7 @@ class Task4:
             self.rate.sleep()
 
 if __name__ == "__main__":
-    ros_node = Task4()
+    ros_node = Task5()
     ros_node.main()
 
 
