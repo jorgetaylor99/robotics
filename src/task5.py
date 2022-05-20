@@ -23,7 +23,7 @@ class Task5:
         rospy.init_node(node_name, anonymous=True)
 
         self.odom_subscriber = rospy.Subscriber("/odom", Odometry, self.callback_odom)
-        self.camera_subscriber = rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback_camera)
+        self.camera_subscriber = rospy.Subscriber("/camera/color/image_raw", Image, self.callback_camera)
         self.lidar_subscriber = rospy.Subscriber('/scan', LaserScan, self.callback_lidar)
         self.velocity_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
